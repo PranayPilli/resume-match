@@ -1,84 +1,75 @@
-# Resume Match — AI Resume Screening System
+# 🎯 Resume Match
 
-Paste a resume and a job description, get back a match score, overlapping
-skills, missing skills, a plain-English summary, and concrete suggestions —
-powered by the Gemini API.
+**AI-powered resume ↔ job description analyzer.** Paste a resume and a job posting (or upload a PDF/DOCX), and get back a match score, overlapping skills, missing skills, and concrete suggestions to close the gap — powered by Google's Gemini API.
 
-```
+**[🔗 Live Demo](https://resume-match-checker.vercel.app)** &nbsp;·&nbsp; **[🎥 Watch Demo Video](https://drive.google.com/file/d/1H8SapA2oMMS_CKeugJzOwQRoicDg2k68/view?usp=drive_link)** &nbsp;·&nbsp; **[⚙️ API Health Check](https://resume-match-w0dt.onrender.com/api/health)**
+
+![Next.js](https://img.shields.io/badge/Next.js-14-black?logo=next.js) ![TypeScript](https://img.shields.io/badge/TypeScript-5.5-blue?logo=typescript) ![Flask](https://img.shields.io/badge/Flask-3.0-black?logo=flask) ![Gemini](https://img.shields.io/badge/Gemini_API-2.5_Flash-4285F4?logo=google) ![License](https://img.shields.io/badge/license-MIT-green)
+
+---
+
+## What it does
+
+1. Paste resume + job description text, or upload a resume as PDF/DOCX
+2. A structured prompt asks Gemini to compare both and return fixed-schema JSON
+3. The UI renders a color-coded match score, matching/missing skill chips, a plain-English summary, and actionable suggestions
+
+## Features
+
+-  **Resume upload** — drop in a PDF or DOCX, text is extracted server-side automatically
+-  **Match scoring** — 0–100 score with color-coded gauge (strong / partial / weak)
+-  **Skill gap analysis** — matching skills vs. missing skills, shown side by side
+-  **Actionable suggestions** — specific edits to improve the match for that job
+-  **Robust error handling** — malformed AI output, oversized input, and missing fields are all caught and returned as clean errors instead of crashing
+
+## Tech stack
+
+| Layer | Technology | Why |
+|---|---|---|
+| Frontend | Next.js (App Router), TypeScript, Tailwind CSS | Modern, market-standard full-stack frontend |
+| Backend | Python, Flask, Flask-CORS | Simple, explainable REST API — one clear endpoint |
+| AI | Google Gemini API (`gemini-2.5-flash`) | Free tier, strong structured-output support |
+| File parsing | `pypdf`, `python-docx` | Server-side text extraction from uploaded resumes |
+| Deployment | Vercel (frontend) + Render (backend) | Both free tiers, zero cost to run |
+
+## Project structure
+
+```text
 resume-match/
-├── README.md
 ├── backend/
-│   ├── app.py              # Flask routes + Gemini integration
+│   ├── app.py              # Flask routes, Gemini integration, file parsing
 │   ├── requirements.txt
 │   └── .env.example
 └── frontend/
     ├── app/
     │   ├── components/     # AnalyzerForm.tsx, ResultPanel.tsx
-    │   ├── lib/             # api.ts, types.ts, sampleData.ts
+    │   ├── lib/            # api.ts, types.ts, sampleData.ts
     │   ├── layout.tsx
-    │   ├── page.tsx
-    │   └── globals.css
-    ├── package.json
-    └── tsconfig.json
+    │   └── page.tsx
+    └── package.json
 ```
 
----
-
-## 1. Get a free Gemini API key
-
-1. Go to [aistudio.google.com/apikey](https://aistudio.google.com/apikey)
-2. Sign in with a Google account and click **Create API key**
-3. Copy the key — no credit card required for the free tier
-
----
-
-## 2. Run the backend
+## Run it locally
 
 ```bash
+# Backend
 cd backend
-python3 -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
+python -m venv venv && source venv/bin/activate   # Windows: venv\Scripts\activate
 pip install -r requirements.txt
+cp .env.example .env   # add your free Gemini key from aistudio.google.com/apikey
+python app.py          # → http://localhost:5000
 
-cp .env.example .env
-# open .env and paste your key into GEMINI_API_KEY=
-
-python app.py
-```
-
-The API now runs at `http://localhost:5000`. Sanity check:
-
-```bash
-curl http://localhost:5000/api/health
-# {"status":"ok","model":"gemini-2.5-flash","configured":true}
-```
-
----
-
-## 3. Run the frontend
-
-In a **second terminal**:
-
-```bash
+# Frontend (new terminal)
 cd frontend
 npm install
-
 cp .env.local.example .env.local
-# defaults to NEXT_PUBLIC_API_URL=http://localhost:5000, which is correct for local dev
-
-npm run dev
+npm run dev             # → http://localhost:3000
 ```
 
-Open `http://localhost:3000`. Click **Fill sample data** to try it instantly,
-or paste your own resume and a job posting, then click **Analyze match**.
-
----
-
-## 4. API contract
+## API
 
 **POST** `/api/analyze`
 
-Request body:
 ```json
 {
   "resume": "full resume text...",
@@ -86,63 +77,36 @@ Request body:
 }
 ```
 
-Success response (`200`):
 ```json
 {
   "match_score": 78,
-  "matching_skills": ["React", "TypeScript", "REST APIs"],
-  "missing_skills": ["Docker", "CI/CD"],
+  "matching_skills": [
+    "React",
+    "TypeScript",
+    "REST APIs"
+  ],
+  "missing_skills": [
+    "Docker",
+    "CI/CD"
+  ],
   "summary": "Strong frontend alignment with some gaps in DevOps tooling.",
-  "suggestions": ["Add a project that shows CI/CD experience...", "..."]
+  "suggestions": [
+    "Add a project that demonstrates CI/CD experience...",
+    "..."
+  ]
 }
 ```
 
-Error responses (`400`/`500`/`502`) always look like:
-```json
-{ "error": "missing_fields", "message": "Human-readable explanation." }
-```
+**POST** `/api/extract-resume` — accepts a `multipart/form-data` file (`pdf`/`docx`/`txt`), returns `{ "text": "..." }`
 
-Handled failure modes:
-- Missing/empty fields → `400 missing_fields`
-- Oversized input (>15,000 chars/field) → `400 input_too_large`
-- Missing `GEMINI_API_KEY` → `500 server_misconfigured`
-- Gemini API/network failure → `502 ai_request_failed`
-- Gemini returns non-JSON or malformed JSON → `502 invalid_ai_response`
-  (the backend catches the parse error and returns a clean message instead
-  of crashing)
+Errors always return `{ "error": "code", "message": "human-readable explanation" }` with an appropriate 4xx/5xx status.
 
----
+## Design decisions 
 
-## 5. Deploy for free
+- **Stateless architecture** — No database or authentication is required because each analysis is independent.
+- **Structured AI responses** — The backend validates Gemini's output and returns meaningful errors if parsing fails.
+- **Future improvements** — Embeddings or semantic search can improve matching accuracy.
 
-**Backend → Render**
-1. Push this repo to GitHub
-2. On [render.com](https://render.com): New → Web Service → connect the repo, root directory `backend`
-3. Build command: `pip install -r requirements.txt`
-4. Start command: `gunicorn app:app`
-5. Add environment variable `GEMINI_API_KEY` with your key
-6. Once deployed, copy the Render URL (e.g. `https://resume-match-backend.onrender.com`)
+## License
 
-**Frontend → Vercel**
-1. On [vercel.com](https://vercel.com): New Project → import the repo, root directory `frontend`
-2. Add environment variable `NEXT_PUBLIC_API_URL` = your Render URL from above
-3. Deploy
-
-**Lock down CORS (recommended)**
-Back on Render, set `ALLOWED_ORIGIN` to your Vercel URL (e.g.
-`https://resume-match.vercel.app`) instead of the default `*`, then redeploy.
-
----
-
-## 6. Design notes / interview talking points
-
-- **No database, no auth** — deliberate. Each analysis is stateless and
-  independent, which keeps the project focused on prompt engineering and
-  clean API integration rather than general CRUD.
-- **Malformed AI output** is caught explicitly: `app.py` strips markdown
-  fences if Gemini adds them, extracts the first JSON object it finds, and
-  returns a clean `502` instead of crashing if parsing still fails.
-- **Improving match accuracy further**: the natural next step is embeddings
-  / semantic search over the resume and job description to catch synonyms
-  and implied skills the LLM's single pass might miss, rather than relying
-  purely on the model's own judgment.
+MIT
